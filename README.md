@@ -1,10 +1,11 @@
-# rushport — Rushfiles cloud migration
+# rushport — migration utility for authorized cloud exports
 
-`rushport` is a command-line tool for moving files between
-[Rushfiles](https://www.rushfiles.com/) and other cloud storage providers.
-Today it migrates from Rushfiles to Microsoft OneDrive; the roadmap is a
-full cloud-to-cloud migration suite centered on Rushfiles — both directions,
-multiple destinations.
+> Unofficial interoperability tool for migrating data you are authorized to access. Not affiliated with, endorsed by, or supported by RushFiles A/S or Microsoft.
+
+`rushport` is a command-line migration utility for moving files between
+services when you are authorized to access the source data.
+Today it supports transfers from [RushFiles](https://www.rushfiles.com/) to
+Microsoft OneDrive.
 
 File bytes stream directly from Rushfiles' FileCache into the destination's
 upload API — nothing is buffered to local disk. Transfer state lives in SQLite
@@ -23,10 +24,11 @@ so interrupted runs resume cleanly. Original `createdDateTime` and
 New destinations plug in through `destinations/<name>.py`; see
 ["Adding a new destination"](#adding-a-new-destination) below.
 
+Use of third-party services remains subject to their own terms, policies, and trademarks.
+
 ## Features
 
-- OAuth Authorization Code + PKCE login for Rushfiles (headless Chromium via Playwright)
-- Device-code login for OneDrive (works for both personal and work/school accounts)
+- RushFiles sign-in support and OneDrive device-code sign-in
 - Concurrent uploads with configurable fan-out
 - Chunked upload sessions for files ≥ 4 MB (320 KiB-aligned chunks)
 - Preserves timestamps on files **and** folders
@@ -70,7 +72,7 @@ rushfiles:
   filecache_base: "https://filecache01.<your-tenant>"
 
 microsoft:
-  client_id: "04b07795-8ddb-461a-bbee-02f9e1bf7b46"   # Azure CLI public client
+  client_id: "<your-app-registration-client-id>"
   tenant_id: "common"
 
 transfer:
@@ -84,6 +86,10 @@ state:
 ```
 
 `config.yaml` is git-ignored — your credentials never get committed.
+
+Recommended for production use: register your own Microsoft Entra application
+and request only the Microsoft Graph permissions required for your transfer
+scenario (least privilege).
 
 > **Finding your Rushfiles tenant URLs:** the client gateway and file cache are
 > tenant-specific. Your Rushfiles admin or portal will have them; they're
@@ -115,17 +121,19 @@ rushport status --failed     # detail of failed files
 
 Run `rushport --help` for the full command list.
 
+Security note: authentication tokens are stored locally in the user profile
+directory. On Unix-like systems, cache files are written with user-only
+permissions where supported. Use endpoint security and disk encryption on
+shared systems.
+
 ## How it works
 
-```
-  auth.rushfiles.com  ──OAuth AuthCode+PKCE──▶  JWT (initial login via Playwright)
-  clientgateway.<tenant>  ─── metadata / file tree
-  filecache01.<tenant>    ─── streaming bytes
-                                  │
-                             (no temp files)
-                                  ▼
-  Destination cloud (today: Microsoft Graph / OneDrive upload sessions)
-```
+At a high level, `rushport`:
+
+1. Authenticates to configured source and destination services
+2. Scans the source tree and records transfer state in local SQLite
+3. Streams source bytes directly to destination upload APIs (no local temp files)
+4. Applies post-transfer metadata updates (including timestamp preservation)
 
 `SyncEngine` runs three phases:
 
@@ -150,9 +158,7 @@ extension point with a `source` counterpart.
 
 ## Limitations
 
-- **Initial Rushfiles login requires a real Chromium** (via Playwright). Pure-HTTP
-  replay of the auth POST returns 500 — likely bot-fingerprinting on their side.
-  Token refresh (30-day refresh token) is pure HTTP and does not need the browser.
+- **Initial RushFiles login requires Chromium** (via Playwright in current implementation).
 - **No path-length guard.** OneDrive's ~400-char path limit may bite deep trees.
 - **No test suite yet.** Contributions welcome.
 - **`list-shares` can return empty** on some Rushfiles accounts (`ManagedShares`
@@ -161,5 +167,6 @@ extension point with a `source` counterpart.
 
 ## License
 
-[MIT](LICENSE) — free and open source. Fork, modify, redistribute, sell,
-whatever you want.
+[MIT](LICENSE)-licensed. You may use, modify, and redistribute this code under
+the MIT License. Third-party services remain subject to their own terms and
+trademarks.
