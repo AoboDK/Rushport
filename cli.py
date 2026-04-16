@@ -429,6 +429,18 @@ def status(
     asyncio.run(_run())
 
 
+@app.command("gui")
+def gui():
+    """Launch the guided desktop UI."""
+    try:
+        from gui import launch_gui
+    except Exception as e:
+        console.print(f"[red]Could not launch GUI:[/] {e}")
+        raise typer.Exit(1)
+
+    launch_gui()
+
+
 def _load_config_or_exit():
     try:
         return load_config()

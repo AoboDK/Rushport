@@ -11,6 +11,7 @@ import yaml
 
 
 _DEFAULT_CONFIG_PATH = Path("config.yaml")
+_DEFAULT_MS_CLIENT_ID = "6750d115-92e4-4196-b69a-d9cc7c1fb214"
 
 
 class Config:
@@ -41,9 +42,8 @@ class Config:
     # Microsoft
     @property
     def ms_client_id(self) -> str:
-        return self._data.get("microsoft", {}).get(
-            "client_id", "04b07795-8ddb-461a-bbee-02f9e1bf7b46"
-        )
+        raw = self._data.get("microsoft", {}).get("client_id", "")
+        return raw or _DEFAULT_MS_CLIENT_ID
 
     @property
     def ms_tenant_id(self) -> str:

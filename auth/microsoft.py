@@ -15,10 +15,9 @@ Flow:
   3. App polls until user completes auth
   4. MSAL caches tokens locally; silent refresh from then on
 
-The Microsoft Azure public client ID used here is the well-known
-"Microsoft Azure CLI" app which has Files.ReadWrite.All delegated scope
-available without custom app registration. For production, register your
-own Azure AD app and replace client_id in config.yaml.
+By default, rushport uses a shared public client registered by the project
+maintainer. Users who want full control can register their own Microsoft
+Entra public client application and set client_id in config.yaml.
 """
 
 from __future__ import annotations
@@ -78,14 +77,23 @@ class MicrosoftAuth:
             return
 
         # Device code flow
+        flow = self.start_device_flow()
+        printer(flow["message"])  # "To sign in, visit https://aka.ms/devicelogin and enter code XXXXXXXX"
+        self.complete_device_flow(flow)
+
+    def start_device_flow(self) -> dict:
+        """Start device-code auth and return the flow payload for UI handling."""
+        app = self._get_app()
         flow = app.initiate_device_flow(scopes=_SCOPES)
         if "user_code" not in flow:
             raise MicrosoftAuthError(
                 f"Failed to start device code flow: {flow.get('error_description', flow)}"
             )
+        return flow
 
-        printer(flow["message"])  # "To sign in, visit https://aka.ms/devicelogin and enter code XXXXXXXX"
-
+    def complete_device_flow(self, flow: dict) -> None:
+        """Block until the started device-code flow completes or fails."""
+        app = self._get_app()
         result = app.acquire_token_by_device_flow(flow)
         self._handle_token_result(result)
         self._save_cache()

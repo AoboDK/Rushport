@@ -20,6 +20,7 @@ dependencies = [
 
 [project.scripts]
 rushport = "cli:app"
+rushport-gui = "gui:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]

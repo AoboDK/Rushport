@@ -9,7 +9,7 @@ rushfiles:
   filecache_base: ""     # e.g. https://filecache01.your-domain.com
 
 microsoft:
-  client_id: "04b07795-8ddb-461a-bbee-02f9e1bf7b46"
+  client_id: ""          # Optional. Leave blank to use the shared Rushport app, or set your own Microsoft Entra app client ID.
   tenant_id: "common"
 
 transfer:
