@@ -1,0 +1,22 @@
+# config.yaml.example — safe to commit, contains no real values.
+# Copy to config.yaml and fill in your details.
+# config.yaml is git-ignored so your real values will never be committed.
+
+rushfiles:
+  email: ""              # Your Rushfiles login email (prompted at runtime if blank)
+  password: ""           # Your Rushfiles password (prompted at runtime if blank)
+  clientgateway_base: "" # e.g. https://clientgateway.your-domain.com
+  filecache_base: ""     # e.g. https://filecache01.your-domain.com
+
+microsoft:
+  client_id: "04b07795-8ddb-461a-bbee-02f9e1bf7b46"
+  tenant_id: "common"
+
+transfer:
+  concurrency: 4
+  chunk_size_mb: 10
+  retry_attempts: 3
+  retry_delay_s: 5
+
+state:
+  db_path: "~/.rushport/state.db"
