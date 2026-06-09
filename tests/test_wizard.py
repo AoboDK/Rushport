@@ -161,3 +161,32 @@ async def test_rf_auth_retries_on_bad_password():
         await step_rf_auth(mock_cfg)
 
     assert mock_auth.login.call_count == 2
+
+
+# ── step_ms_auth ──────────────────────────────────────────────────────────────
+
+def test_ms_auth_skips_when_authenticated():
+    """Returns without running device-code flow when already authenticated."""
+    mock_ms_auth = MagicMock()
+    mock_ms_auth.is_authenticated.return_value = True
+    mock_cfg = MagicMock(ms_client_id="", ms_tenant_id="common")
+
+    with patch("wizard.MicrosoftAuth", return_value=mock_ms_auth):
+        from wizard import step_ms_auth
+        result = step_ms_auth(mock_cfg)
+
+    assert result is mock_ms_auth
+    mock_ms_auth.ensure_authenticated.assert_not_called()
+
+
+def test_ms_auth_runs_device_code_flow():
+    """Calls ensure_authenticated() when no valid token is cached."""
+    mock_ms_auth = MagicMock()
+    mock_ms_auth.is_authenticated.return_value = False
+    mock_cfg = MagicMock(ms_client_id="", ms_tenant_id="common")
+
+    with patch("wizard.MicrosoftAuth", return_value=mock_ms_auth):
+        from wizard import step_ms_auth
+        step_ms_auth(mock_cfg)
+
+    mock_ms_auth.ensure_authenticated.assert_called_once()

@@ -169,7 +169,25 @@ async def step_rf_auth(cfg: Config) -> RushfilesAuth:
 
 
 def step_ms_auth(cfg: Config) -> MicrosoftAuth:
-    raise NotImplementedError
+    ms_auth = MicrosoftAuth(client_id=cfg.ms_client_id, tenant_id=cfg.ms_tenant_id)
+
+    if ms_auth.is_authenticated():
+        _print_skip("Already authenticated with OneDrive")
+        return ms_auth
+
+    _print_step(3, "OneDrive Authentication")
+    console.print("Works with [cyan]personal OneDrive[/] and [cyan]OneDrive for Business[/].\n")
+
+    try:
+        ms_auth.ensure_authenticated(console_print=console.print)
+        console.print("[green]OneDrive authentication successful.[/]")
+        return ms_auth
+    except MicrosoftAuthError as e:
+        _print_error(
+            f"OneDrive authentication failed: {e}",
+            "Run `rushport-cli auth onedrive` to retry manually.",
+        )
+        raise SystemExit(1)
 
 
 async def step_pick_share(cfg: Config, rf_auth: RushfilesAuth) -> list[tuple[str, str]]:
