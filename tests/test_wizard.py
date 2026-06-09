@@ -327,3 +327,81 @@ def test_transfer_options_dry_run_sets_flag():
         result = step_transfer_options(mock_cfg, [("share-1", "Name")])
 
     assert result["dry_run"] is True
+
+
+# ── step_run_transfer ─────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_run_transfer_dry_run_walks_without_uploading():
+    """In dry-run mode, walks files and prints counts; SyncEngine is never created."""
+    fake_vf = MagicMock(is_file=True, size_bytes=2048)
+
+    mock_rf = AsyncMock()
+    mock_rf.walk = lambda share_id: async_items(("path/file.txt", fake_vf))
+    mock_rf.__aenter__ = AsyncMock(return_value=mock_rf)
+    mock_rf.__aexit__ = AsyncMock(return_value=None)
+
+    mock_state_db = AsyncMock()
+    mock_state_db.__aenter__ = AsyncMock(return_value=mock_state_db)
+    mock_state_db.__aexit__ = AsyncMock(return_value=None)
+
+    mock_cfg = MagicMock(
+        ms_client_id="", ms_tenant_id="common", chunk_size_mb=10,
+        rf_clientgateway_base="https://cg.example.com", rf_filecache_base="",
+        db_path=MagicMock(), retry_attempts=3, retry_delay_s=5,
+    )
+    mock_rf_auth = MagicMock()
+    options = {"shares": [("share-1", "Sales Docs")], "dry_run": True, "concurrency": 4}
+
+    with patch("wizard.RushfilesClient", return_value=mock_rf), \
+         patch("wizard.StateDB", return_value=mock_state_db), \
+         patch("wizard.create_onedrive_client", return_value=(MagicMock(), MagicMock())), \
+         patch("wizard.SyncEngine") as mock_engine_cls:
+
+        from wizard import step_run_transfer
+        await step_run_transfer(mock_cfg, mock_rf_auth, options)
+
+    mock_engine_cls.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_run_transfer_calls_sync_engine_for_each_share():
+    """In live mode, creates SyncEngine and calls run() once per share."""
+    mock_rf = AsyncMock()
+    mock_rf.__aenter__ = AsyncMock(return_value=mock_rf)
+    mock_rf.__aexit__ = AsyncMock(return_value=None)
+
+    mock_state_db = AsyncMock()
+    mock_state_db.__aenter__ = AsyncMock(return_value=mock_state_db)
+    mock_state_db.__aexit__ = AsyncMock(return_value=None)
+
+    mock_graph = AsyncMock()
+    mock_graph.__aenter__ = AsyncMock(return_value=mock_graph)
+    mock_graph.__aexit__ = AsyncMock(return_value=None)
+
+    mock_engine = AsyncMock()
+    mock_engine.run = AsyncMock()
+
+    mock_cfg = MagicMock(
+        ms_client_id="", ms_tenant_id="common", chunk_size_mb=10,
+        rf_clientgateway_base="https://cg.example.com", rf_filecache_base="",
+        db_path=MagicMock(), retry_attempts=3, retry_delay_s=5,
+    )
+    mock_rf_auth = MagicMock()
+    options = {
+        "shares": [("id-1", "Share A"), ("id-2", "Share B")],
+        "dry_run": False,
+        "concurrency": 4,
+    }
+
+    with patch("wizard.RushfilesClient", return_value=mock_rf), \
+         patch("wizard.StateDB", return_value=mock_state_db), \
+         patch("wizard.create_onedrive_client", return_value=(MagicMock(), mock_graph)), \
+         patch("wizard.SyncEngine", return_value=mock_engine):
+
+        from wizard import step_run_transfer
+        await step_run_transfer(mock_cfg, mock_rf_auth, options)
+
+    assert mock_engine.run.call_count == 2
+    mock_engine.run.assert_any_call("id-1", "Share A", resume=False)
+    mock_engine.run.assert_any_call("id-2", "Share B", resume=False)

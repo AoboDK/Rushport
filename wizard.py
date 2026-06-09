@@ -275,7 +275,46 @@ def step_transfer_options(cfg: Config, shares: list[tuple[str, str]]) -> dict:
 
 
 async def step_run_transfer(cfg: Config, rf_auth: RushfilesAuth, options: dict) -> None:
-    raise NotImplementedError
+    _print_step(6, "Transfer")
+
+    _, graph_client = create_onedrive_client(
+        client_id=cfg.ms_client_id,
+        tenant_id=cfg.ms_tenant_id,
+        chunk_size_mb=cfg.chunk_size_mb,
+    )
+
+    async with RushfilesClient(
+        rf_auth,
+        clientgateway_base=cfg.rf_clientgateway_base,
+        filecache_base=cfg.rf_filecache_base,
+    ) as rf_client:
+        async with StateDB(cfg.db_path) as state_db:
+            if options["dry_run"]:
+                console.print("[yellow]Dry run — scanning only, no files will be transferred.[/]")
+                for share_id, folder in options["shares"]:
+                    stats = SyncStats()
+                    async for _path, vf in rf_client.walk(share_id):
+                        if vf.is_file:
+                            stats.scanned += 1
+                            stats.total_bytes += vf.size_bytes
+                    console.print(
+                        f"  [cyan]{folder}[/]: [bold]{stats.scanned}[/] files "
+                        f"([bold]{_human_bytes(stats.total_bytes)}[/])"
+                    )
+                return
+
+            async with graph_client:
+                engine = SyncEngine(
+                    rf_client=rf_client,
+                    graph_client=graph_client,
+                    state_db=state_db,
+                    concurrency=options["concurrency"],
+                    retry_attempts=cfg.retry_attempts,
+                    retry_delay_s=cfg.retry_delay_s,
+                )
+                for share_id, folder in options["shares"]:
+                    console.print(f"\n[bold]Share:[/] {folder}")
+                    await engine.run(share_id, folder, resume=False)
 
 
 # ── Wizard loop ───────────────────────────────────────────────────────────────
