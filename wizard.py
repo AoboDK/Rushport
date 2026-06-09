@@ -45,7 +45,99 @@ def _handle_interrupt() -> None:
 # ── Step stubs (filled in by subsequent tasks) ────────────────────────────────
 
 def step_config_setup() -> Config:
-    raise NotImplementedError
+    try:
+        cfg = load_config()
+        _print_skip("Config already set up")
+        return cfg
+    except ConfigError:
+        pass
+
+    _print_step(1, "RushFiles Setup")
+
+    existing: dict = {}
+    if CONFIG_PATH.exists():
+        with open(CONFIG_PATH) as f:
+            existing = yaml.safe_load(f) or {}
+
+    rf = existing.get("rushfiles", {})
+    ms = existing.get("microsoft", {})
+    tr = existing.get("transfer", {})
+    st = existing.get("state", {})
+
+    clientgateway = questionary.text(
+        "RushFiles clientgateway URL:", default=rf.get("clientgateway_base", "")
+    ).ask()
+    if clientgateway is None:
+        _handle_interrupt()
+
+    filecache = questionary.text(
+        "RushFiles filecache URL (leave blank to auto-discover):",
+        default=rf.get("filecache_base", ""),
+    ).ask()
+    if filecache is None:
+        _handle_interrupt()
+
+    app_mode = questionary.select(
+        "Microsoft app mode:",
+        choices=["Shared rushport app (recommended)", "My own Entra app"],
+        default="Shared rushport app (recommended)",
+    ).ask()
+    if app_mode is None:
+        _handle_interrupt()
+
+    client_id = ""
+    tenant_id = "common"
+    if app_mode == "My own Entra app":
+        client_id = questionary.text(
+            "Microsoft Entra client ID:", default=ms.get("client_id", "")
+        ).ask()
+        if client_id is None:
+            _handle_interrupt()
+        tenant_id = questionary.text(
+            "Tenant ID:", default=ms.get("tenant_id", "common")
+        ).ask()
+        if tenant_id is None:
+            _handle_interrupt()
+
+    concurrency = questionary.text(
+        "Concurrent uploads:", default=str(tr.get("concurrency", 4))
+    ).ask()
+    if concurrency is None:
+        _handle_interrupt()
+
+    chunk_size_mb = questionary.text(
+        "Chunk size (MB):", default=str(tr.get("chunk_size_mb", 10))
+    ).ask()
+    if chunk_size_mb is None:
+        _handle_interrupt()
+
+    data = {
+        "rushfiles": {
+            "email": rf.get("email", ""),
+            "password": rf.get("password", ""),
+            "clientgateway_base": clientgateway,
+            "filecache_base": filecache,
+        },
+        "microsoft": {
+            "client_id": client_id,
+            "tenant_id": tenant_id,
+        },
+        "transfer": {
+            "concurrency": int(concurrency),
+            "chunk_size_mb": int(chunk_size_mb),
+            "retry_attempts": int(tr.get("retry_attempts", 3)),
+            "retry_delay_s": float(tr.get("retry_delay_s", 5)),
+        },
+        "state": {
+            "db_path": st.get("db_path", "~/.rushport/state.db"),
+        },
+    }
+
+    with open(CONFIG_PATH, "w") as f:
+        yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
+
+    console.print("[green]Config saved to config.yaml[/]")
+    return load_config()
 
 
 async def step_rf_auth(cfg: Config) -> RushfilesAuth:
