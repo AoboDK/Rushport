@@ -97,3 +97,67 @@ def test_config_setup_own_app_prompts_client_id(tmp_path, monkeypatch):
     data = yaml.safe_load((tmp_path / "config.yaml").read_text())
     assert data["microsoft"]["client_id"] == "my-client-id"
     assert data["microsoft"]["tenant_id"] == "my-tenant"
+
+
+# ── step_rf_auth ──────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_rf_auth_skips_when_cached():
+    """Returns without prompting when a cached token loads successfully."""
+    mock_auth = MagicMock()
+    mock_auth.load_cached = AsyncMock(return_value=True)
+    mock_cfg = MagicMock(rf_clientgateway_base="https://cg.example.com")
+
+    with patch("wizard.RushfilesAuth", return_value=mock_auth):
+        from wizard import step_rf_auth
+        result = await step_rf_auth(mock_cfg)
+
+    assert result is mock_auth
+    mock_auth.load_cached.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_rf_auth_prompts_and_logs_in():
+    """Prompts for email and password then calls auth.login() when no cache."""
+    mock_auth = MagicMock()
+    mock_auth.load_cached = AsyncMock(return_value=False)
+    mock_auth.login = AsyncMock()
+    mock_cfg = MagicMock(rf_clientgateway_base="https://cg.example.com", rf_email="")
+
+    with patch("wizard.RushfilesAuth", return_value=mock_auth), \
+         patch("questionary.text") as mock_text, \
+         patch("questionary.password") as mock_pw:
+
+        mock_text.return_value.ask.return_value = "user@example.com"
+        mock_pw.return_value.ask.return_value = "secret"
+
+        from wizard import step_rf_auth
+        result = await step_rf_auth(mock_cfg)
+
+    mock_auth.login.assert_called_once_with("user@example.com", "secret")
+    assert result is mock_auth
+
+
+@pytest.mark.asyncio
+async def test_rf_auth_retries_on_bad_password():
+    """Re-prompts after RushfilesAuthError, succeeds on second attempt."""
+    from auth.rushfiles import RushfilesAuthError
+
+    mock_auth = MagicMock()
+    mock_auth.load_cached = AsyncMock(return_value=False)
+    mock_auth.login = AsyncMock(
+        side_effect=[RushfilesAuthError("bad password"), None]
+    )
+    mock_cfg = MagicMock(rf_clientgateway_base="https://cg.example.com", rf_email="")
+
+    with patch("wizard.RushfilesAuth", return_value=mock_auth), \
+         patch("questionary.text") as mock_text, \
+         patch("questionary.password") as mock_pw:
+
+        mock_text.return_value.ask.return_value = "user@example.com"
+        mock_pw.return_value.ask.return_value = "secret"
+
+        from wizard import step_rf_auth
+        await step_rf_auth(mock_cfg)
+
+    assert mock_auth.login.call_count == 2

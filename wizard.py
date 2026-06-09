@@ -141,7 +141,31 @@ def step_config_setup() -> Config:
 
 
 async def step_rf_auth(cfg: Config) -> RushfilesAuth:
-    raise NotImplementedError
+    auth = RushfilesAuth(clientgateway_base=cfg.rf_clientgateway_base)
+
+    if await auth.load_cached():
+        _print_skip("Already authenticated with RushFiles")
+        return auth
+
+    _print_step(2, "RushFiles Authentication")
+
+    while True:
+        email = questionary.text(
+            "RushFiles email:", default=cfg.rf_email or ""
+        ).ask()
+        if email is None:
+            _handle_interrupt()
+
+        password = questionary.password("RushFiles password:").ask()
+        if password is None:
+            _handle_interrupt()
+
+        try:
+            await auth.login(email, password)
+            console.print("[green]RushFiles authentication successful.[/]")
+            return auth
+        except RushfilesAuthError as e:
+            _print_error(f"Authentication failed: {e}", "Please try again.")
 
 
 def step_ms_auth(cfg: Config) -> MicrosoftAuth:
