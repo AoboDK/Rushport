@@ -28,7 +28,8 @@ Use of third-party services remains subject to their own terms, policies, and tr
 
 ## Features
 
-- RushFiles sign-in support and OneDrive device-code sign-in
+- Guided interactive wizard — no config files to edit, no commands to memorize
+- RushFiles sign-in and OneDrive device-code sign-in
 - Concurrent uploads with configurable fan-out
 - Chunked upload sessions for files ≥ 4 MB (320 KiB-aligned chunks)
 - Preserves timestamps on files **and** folders
@@ -50,36 +51,30 @@ args may need tuning if Chromium fails to start.
 ## Install
 
 ```bash
-git clone https://github.com/<your-username>/rushport.git
-cd rushport
+git clone https://github.com/AoboDK/Rushport.git
+cd Rushport
 pip install -e .
 python -m playwright install chromium
 ```
 
 ## Get Started
 
-The simplest path for most users is the desktop GUI:
-
-1. Install the app and Chromium as shown above.
-2. Launch the GUI:
+Run the wizard and follow the prompts — it guides you through every step:
 
 ```bash
-rushport-gui
-# or
-rushport gui
+rushport
 ```
 
-3. In `1. Setup`, enter your RushFiles tenant URLs and choose how Microsoft sign-in should work:
-   - Leave `Microsoft app mode` on the shared rushport app for the quickest start.
-   - Switch to your own Microsoft Entra app if you want the Microsoft auth flow fully under your control.
-4. In `2. Connect`, authenticate RushFiles and OneDrive.
-   - RushFiles opens Chromium for sign-in.
-   - OneDrive opens the Microsoft device login page and shows a copyable code in the app.
-5. In `3. Choose Share`, load your available shares and pick the one to migrate.
-6. In `4. Transfer`, start with a dry run if you want to verify access before uploading.
+The wizard walks through six steps automatically, skipping any that are already complete:
 
-The GUI starts with neutral blank setup fields by default. If you already have a local
-`config.yaml`, use the `Load saved config` button in `1. Setup`.
+1. **RushFiles Setup** — enter your tenant URLs and choose Microsoft app mode; written to `config.yaml` (created for you, never committed)
+2. **RushFiles Authentication** — sign in with your email and password; token cached locally
+3. **OneDrive Authentication** — device-code flow; visit the URL shown, enter the code, done
+4. **Choose Share** — arrow-key list of your available shares; pick one or transfer all
+5. **Transfer Options** — confirm destination folder name, optional dry run, concurrency
+6. **Transfer** — live progress output; prompts to transfer another share when done
+
+On subsequent runs, completed steps (config present, tokens cached) are detected and skipped automatically.
 
 ## Finding Your RushFiles URLs
 
@@ -106,7 +101,8 @@ base URLs for your tenant rather than guessing.
 
 ## Configure Manually
 
-Copy the template and fill in your Rushfiles tenant URLs:
+The wizard creates and manages `config.yaml` for you. If you prefer to configure
+it by hand (e.g. for scripted or automated use), copy the template:
 
 ```bash
 cp config.yaml.example config.yaml
@@ -120,7 +116,7 @@ rushfiles:
   filecache_base: "https://filecache01.<your-tenant>"
 
 microsoft:
-  client_id: ""          # leave blank to use the shared Rushport app, or set your own app registration client ID
+  client_id: ""          # leave blank to use the shared rushport app, or set your own app registration client ID
   tenant_id: "common"
 
 transfer:
@@ -137,7 +133,7 @@ state:
 
 Microsoft sign-in options:
 
-1. Leave `microsoft.client_id` blank to use the shared Rushport public client
+1. Leave `microsoft.client_id` blank to use the shared rushport public client
    maintained for the project.
 2. Set `microsoft.client_id` to your own Microsoft Entra app registration if
    you want the auth surface fully under your control.
@@ -148,32 +144,43 @@ permissions required for your transfer scenario (least privilege).
 
 ## Use
 
-The GUI is the recommended path for most users. The CLI remains available for
-automation, troubleshooting, and advanced use.
+### Wizard (recommended)
+
+```bash
+rushport
+```
+
+Run with no arguments to launch the guided wizard. Picks up where it left off
+on subsequent runs.
+
+### CLI (automation / advanced)
+
+The original subcommand interface is available as `rushport-cli` for scripting,
+automation, and troubleshooting:
 
 ```bash
 # Sign in (tokens are cached under ~/.rushport/)
-rushport auth rushfiles
-rushport auth onedrive
+rushport-cli auth rushfiles
+rushport-cli auth onedrive
 
 # See what Rushfiles shares you can access
-rushport list-shares
+rushport-cli list-shares
 
 # Transfer a share to OneDrive
-rushport run <share-id>
+rushport-cli run <share-id>
 
 # Scan only — no uploads
-rushport run <share-id> --dry-run
+rushport-cli run <share-id> --dry-run
 
 # Resume an interrupted transfer
-rushport resume <share-id>
+rushport-cli resume <share-id>
 
 # Progress overview
-rushport status
-rushport status --failed     # detail of failed files
+rushport-cli status
+rushport-cli status --failed     # detail of failed files
 ```
 
-Run `rushport --help` for the full command list.
+Run `rushport-cli --help` for the full command list.
 
 Security note: authentication tokens are stored locally in the user profile
 directory. On Unix-like systems, cache files are written with user-only
@@ -214,10 +221,9 @@ extension point with a `source` counterpart.
 
 - **Initial RushFiles login requires Chromium** (via Playwright in current implementation).
 - **No path-length guard.** OneDrive's ~400-char path limit may bite deep trees.
-- **No test suite yet.** Contributions welcome.
 - **`list-shares` can return empty** on some Rushfiles accounts (`ManagedShares`
-  comes back empty from `fullprofile`). Workaround: pass the share ID explicitly
-  to `rushport run <share-id>`.
+  comes back empty from `fullprofile`). Workaround: the wizard prompts for a manual
+  share ID in this case, or pass it directly with `rushport-cli run <share-id>`.
 
 ## License
 
