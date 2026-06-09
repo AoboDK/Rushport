@@ -233,7 +233,45 @@ async def step_pick_share(cfg: Config, rf_auth: RushfilesAuth) -> list[tuple[str
 
 
 def step_transfer_options(cfg: Config, shares: list[tuple[str, str]]) -> dict:
-    raise NotImplementedError
+    _print_step(5, "Transfer Options")
+
+    transfer_all = len(shares) > 1
+
+    if not transfer_all:
+        share_id, default_folder = shares[0]
+        dest = questionary.text(
+            "Destination folder in OneDrive:", default=default_folder
+        ).ask()
+        if dest is None:
+            _handle_interrupt()
+        shares = [(share_id, dest)]
+
+    dry_run = questionary.confirm(
+        "Dry run (scan only, no uploads)?", default=False
+    ).ask()
+    if dry_run is None:
+        _handle_interrupt()
+
+    concurrency_str = questionary.text(
+        "Concurrency:", default=str(cfg.concurrency)
+    ).ask()
+    if concurrency_str is None:
+        _handle_interrupt()
+
+    console.print("\n[bold]Summary:[/]")
+    if transfer_all:
+        console.print(f"  Shares:       {len(shares)} (all)")
+    else:
+        console.print(f"  Share:        {shares[0][1]}")
+        console.print(f"  Destination:  /[cyan]{shares[0][1]}[/] (OneDrive)")
+    console.print(f"  Dry run:      {'Yes' if dry_run else 'No'}")
+    console.print(f"  Concurrency:  {concurrency_str}")
+
+    return {
+        "shares": shares,
+        "dry_run": dry_run,
+        "concurrency": int(concurrency_str),
+    }
 
 
 async def step_run_transfer(cfg: Config, rf_auth: RushfilesAuth, options: dict) -> None:

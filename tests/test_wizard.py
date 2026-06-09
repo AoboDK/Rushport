@@ -273,3 +273,57 @@ async def test_pick_share_manual_entry_when_no_shares():
         result = await step_pick_share(mock_cfg, mock_rf_auth)
 
     assert result == [("manual-share-id", "manual-share-id")]
+
+
+# ── step_transfer_options ─────────────────────────────────────────────────────
+
+def test_transfer_options_single_share_prompts_dest():
+    """Prompts for OneDrive destination folder when one share is selected."""
+    mock_cfg = MagicMock(concurrency=4)
+
+    with patch("questionary.text") as mock_text, \
+         patch("questionary.confirm") as mock_confirm:
+
+        mock_text.return_value.ask.side_effect = ["My Folder", "4"]
+        mock_confirm.return_value.ask.return_value = False
+
+        from wizard import step_transfer_options
+        result = step_transfer_options(mock_cfg, [("share-1", "Default Name")])
+
+    assert result["shares"] == [("share-1", "My Folder")]
+    assert result["dry_run"] is False
+    assert result["concurrency"] == 4
+
+
+def test_transfer_options_all_shares_skips_dest_prompt():
+    """Skips destination prompt and preserves folder names for all-shares mode."""
+    mock_cfg = MagicMock(concurrency=4)
+    shares = [("id-1", "Share A"), ("id-2", "Share B")]
+
+    with patch("questionary.text") as mock_text, \
+         patch("questionary.confirm") as mock_confirm:
+
+        mock_text.return_value.ask.return_value = "4"
+        mock_confirm.return_value.ask.return_value = False
+
+        from wizard import step_transfer_options
+        result = step_transfer_options(mock_cfg, shares)
+
+    assert result["shares"] == shares
+    assert mock_text.call_count == 1  # only concurrency, not destination
+
+
+def test_transfer_options_dry_run_sets_flag():
+    """dry_run is True in result when user confirms dry run."""
+    mock_cfg = MagicMock(concurrency=4)
+
+    with patch("questionary.text") as mock_text, \
+         patch("questionary.confirm") as mock_confirm:
+
+        mock_text.return_value.ask.side_effect = ["My Folder", "4"]
+        mock_confirm.return_value.ask.return_value = True
+
+        from wizard import step_transfer_options
+        result = step_transfer_options(mock_cfg, [("share-1", "Name")])
+
+    assert result["dry_run"] is True
