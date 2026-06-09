@@ -16,11 +16,18 @@ dependencies = [
     "aiosqlite>=0.20",
     "pyyaml>=6",
     "playwright>=1.40",
+    "questionary>=2.0",
 ]
 
 [project.scripts]
-rushport = "cli:app"
-rushport-gui = "gui:main"
+rushport     = "wizard:main"
+rushport-cli = "cli:app"
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]
