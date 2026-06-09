@@ -191,7 +191,45 @@ def step_ms_auth(cfg: Config) -> MicrosoftAuth:
 
 
 async def step_pick_share(cfg: Config, rf_auth: RushfilesAuth) -> list[tuple[str, str]]:
-    raise NotImplementedError
+    _print_step(4, "Choose Share")
+
+    async with RushfilesClient(
+        rf_auth,
+        clientgateway_base=cfg.rf_clientgateway_base,
+        filecache_base=cfg.rf_filecache_base,
+    ) as rf:
+        shares = await rf.list_shares()
+
+    if not shares:
+        console.print(
+            "[yellow]No shares found automatically.[/]\n"
+            "[dim]Tip: some accounts return empty shares from the profile endpoint.[/]"
+        )
+        share_id = questionary.text("Enter share ID manually:").ask()
+        if share_id is None:
+            _handle_interrupt()
+        return [(share_id, share_id)]
+
+    choices = [
+        questionary.Choice(
+            title=f"{s.name}  ({s.id})",
+            value=(s.id, sanitize_name(s.name)),
+        )
+        for s in shares
+        if not s.is_deleted
+    ]
+    choices.append(questionary.Choice(title="Transfer all shares", value="ALL"))
+
+    selection = questionary.select(
+        "Choose a share to transfer:", choices=choices
+    ).ask()
+    if selection is None:
+        _handle_interrupt()
+
+    if selection == "ALL":
+        return [(s.id, sanitize_name(s.name)) for s in shares if not s.is_deleted]
+
+    return [selection]
 
 
 def step_transfer_options(cfg: Config, shares: list[tuple[str, str]]) -> dict:

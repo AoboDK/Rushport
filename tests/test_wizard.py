@@ -190,3 +190,86 @@ def test_ms_auth_runs_device_code_flow():
         step_ms_auth(mock_cfg)
 
     mock_ms_auth.ensure_authenticated.assert_called_once()
+
+
+# ── step_pick_share ───────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_pick_share_returns_selected_share():
+    """Returns a single-element list with the (share_id, folder_name) chosen."""
+    share = MagicMock()
+    share.id = "abc-123"
+    share.name = "Sales Docs"
+    share.is_deleted = False
+
+    mock_rf = AsyncMock()
+    mock_rf.list_shares = AsyncMock(return_value=[share])
+    mock_rf.__aenter__ = AsyncMock(return_value=mock_rf)
+    mock_rf.__aexit__ = AsyncMock(return_value=None)
+
+    mock_cfg = MagicMock(rf_clientgateway_base="https://cg.example.com", rf_filecache_base="")
+    mock_rf_auth = MagicMock()
+
+    with patch("wizard.RushfilesClient", return_value=mock_rf), \
+         patch("questionary.select") as mock_select:
+
+        mock_select.return_value.ask.return_value = ("abc-123", "Sales Docs")
+
+        from wizard import step_pick_share
+        result = await step_pick_share(mock_cfg, mock_rf_auth)
+
+    assert result == [("abc-123", "Sales Docs")]
+
+
+@pytest.mark.asyncio
+async def test_pick_share_all_returns_every_non_deleted_share():
+    """Selecting ALL returns all non-deleted shares."""
+    shares = []
+    for i, name in enumerate(["Share A", "Share B", "Share C"]):
+        s = MagicMock()
+        s.id = f"id-{i}"
+        s.name = name
+        s.is_deleted = False
+        shares.append(s)
+
+    mock_rf = AsyncMock()
+    mock_rf.list_shares = AsyncMock(return_value=shares)
+    mock_rf.__aenter__ = AsyncMock(return_value=mock_rf)
+    mock_rf.__aexit__ = AsyncMock(return_value=None)
+
+    mock_cfg = MagicMock(rf_clientgateway_base="https://cg.example.com", rf_filecache_base="")
+    mock_rf_auth = MagicMock()
+
+    with patch("wizard.RushfilesClient", return_value=mock_rf), \
+         patch("questionary.select") as mock_select:
+
+        mock_select.return_value.ask.return_value = "ALL"
+
+        from wizard import step_pick_share
+        result = await step_pick_share(mock_cfg, mock_rf_auth)
+
+    assert len(result) == 3
+    assert result[0][0] == "id-0"
+    assert result[2][0] == "id-2"
+
+
+@pytest.mark.asyncio
+async def test_pick_share_manual_entry_when_no_shares():
+    """Prompts for a manual share ID when list_shares() returns empty."""
+    mock_rf = AsyncMock()
+    mock_rf.list_shares = AsyncMock(return_value=[])
+    mock_rf.__aenter__ = AsyncMock(return_value=mock_rf)
+    mock_rf.__aexit__ = AsyncMock(return_value=None)
+
+    mock_cfg = MagicMock(rf_clientgateway_base="https://cg.example.com", rf_filecache_base="")
+    mock_rf_auth = MagicMock()
+
+    with patch("wizard.RushfilesClient", return_value=mock_rf), \
+         patch("questionary.text") as mock_text:
+
+        mock_text.return_value.ask.return_value = "manual-share-id"
+
+        from wizard import step_pick_share
+        result = await step_pick_share(mock_cfg, mock_rf_auth)
+
+    assert result == [("manual-share-id", "manual-share-id")]
